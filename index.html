@@ -6,41 +6,79 @@
     <title>線上簽署系統</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; text-align: center; background: #f0f0f0; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        canvas { border: 2px dashed #999; width: 100%; max-width: 100%; cursor: crosshair; touch-action: none; }
-        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; }
-        .btn-primary { background: #28a745; color: white; }
-        .btn-admin { background: #007bff; color: white; }
-        .btn-clear { background: #dc3545; color: white; }
-        #admin-area { display: none; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; text-align: center; background: #f4f4f4; margin: 0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* 簽名板樣式 */
+        canvas { border: 2px solid #ccc; width: 100%; max-width: 100%; cursor: crosshair; touch-action: none; background-color: #fff; }
+        
+        /* 按鈕樣式 */
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; transition: 0.3s; }
+        .btn-primary { background: #28a745; color: white; } /* 綠色：送出 */
+        .btn-clear { background: #6c757d; color: white; }   /* 灰色：清除 */
+        .btn-admin { background: #007bff; color: white; }    /* 藍色：管理者 */
+        button:hover { opacity: 0.9; }
+
+        /* 輸入框樣式 */
+        .input-field { padding: 10px; width: 60%; font-size: 16px; border: 1px solid #ddd; border-radius: 4px; }
+
+        /* 管理者區塊 (預設隱藏) */
+        #admin-panel { display: none; background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #007bff; text-align: left; }
+        
+        /* 底部登入連結 */
+        .footer-link { margin-top: 30px; font-size: 12px; color: #999; text-decoration: none; cursor: pointer; }
+        .footer-link:hover { color: #555; }
+
+        /* 登入視窗 (Modal) */
+        #login-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
+        .login-box { background: white; padding: 30px; border-radius: 8px; width: 300px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .login-box input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <button onclick="document.getElementById('admin-area').style.display='block'">管理員模式</button>
-    
-    <div id="admin-area">
-        <h3>管理員：設定合約圖片</h3>
-        <input type="file" id="upload-input" accept="image/*">
-        <button class="btn-admin" onclick="uploadTemplate()">上傳並設為背景</button>
+    <div id="login-modal">
+        <div class="login-box">
+            <h3>🔐 管理者登入</h3>
+            <input type="text" id="username" placeholder="帳號">
+            <input type="password" id="password" placeholder="密碼">
+            <br>
+            <button class="btn-clear" onclick="closeLogin()">取消</button>
+            <button class="btn-admin" onclick="checkLogin()">登入</button>
+        </div>
     </div>
 
-    <h3>請在下方簽名</h3>
-    <div id="canvas-wrapper">
-        <canvas id="pad"></canvas>
-    </div>
-    
-    <div style="margin-top: 20px;">
-        <input type="text" id="signer-name" placeholder="請輸入姓名" style="padding: 10px; width: 60%;">
-        <br><br>
-        <button class="btn-clear" onclick="clearPad()">清除重簽</button>
-        <button class="btn-primary" onclick="submitSign()">✅ 簽署並送出</button>
-    </div>
-    <p id="status" style="color: blue;"></p>
-</div>
+    <div class="container">
+        
+        <div id="admin-panel">
+            <h3>⚙️ 系統設定 (管理者模式)</h3>
+            <p>請上傳合約底圖 (JPG/PNG)，上傳後所有人的簽名板背景將會更新。</p>
+            <input type="file" id="upload-input" accept="image/*">
+            <button class="btn-admin" onclick="uploadTemplate()">☁️ 上傳並更新背景</button>
+            <button class="btn-clear" onclick="logout()" style="float:right;">登出</button>
+        </div>
 
-<script src="script.js"></script>
+        <h2 id="page-title">請於下方簽署文件</h2>
+        
+        <div id="canvas-wrapper">
+            <canvas id="pad"></canvas>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <p>簽署人姓名：</p>
+            <input type="text" id="signer-name" class="input-field" placeholder="請輸入您的真實姓名">
+            <br><br>
+            <button class="btn-clear" onclick="clearPad()">重寫</button>
+            <button class="btn-primary" onclick="submitSign()">✅ 確認簽署並送出</button>
+        </div>
+        
+        <p id="status" style="color: blue; height: 20px;"></p>
+    </div>
+
+    <div style="padding-bottom: 20px;">
+        <a onclick="openLogin()" class="footer-link">Admin Login</a>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
