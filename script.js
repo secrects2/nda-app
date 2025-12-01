@@ -1,5 +1,5 @@
 // !!! 請將下方網址換成您第一步複製的 Google Apps Script 網址 !!!
-const API_URL = "https://script.google.com/macros/s/您的網址代碼/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwsa8d5bJAXUgqVAFbn11bYBGViv29hj-ABRgKAOz9w4pcN_yifl539RLiEXaX1U-DsVA/exec"; 
 
 const canvas = document.getElementById('pad');
 const ctx = canvas.getContext('2d');
