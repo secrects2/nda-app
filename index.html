@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>線上簽署系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; text-align: center; background: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        canvas { border: 2px dashed #999; width: 100%; max-width: 100%; cursor: crosshair; touch-action: none; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; }
+        .btn-primary { background: #28a745; color: white; }
+        .btn-admin { background: #007bff; color: white; }
+        .btn-clear { background: #dc3545; color: white; }
+        #admin-area { display: none; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button onclick="document.getElementById('admin-area').style.display='block'">管理員模式</button>
+    
+    <div id="admin-area">
+        <h3>管理員：設定合約圖片</h3>
+        <input type="file" id="upload-input" accept="image/*">
+        <button class="btn-admin" onclick="uploadTemplate()">上傳並設為背景</button>
+    </div>
+
+    <h3>請在下方簽名</h3>
+    <div id="canvas-wrapper">
+        <canvas id="pad"></canvas>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <input type="text" id="signer-name" placeholder="請輸入姓名" style="padding: 10px; width: 60%;">
+        <br><br>
+        <button class="btn-clear" onclick="clearPad()">清除重簽</button>
+        <button class="btn-primary" onclick="submitSign()">✅ 簽署並送出</button>
+    </div>
+    <p id="status" style="color: blue;"></p>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
