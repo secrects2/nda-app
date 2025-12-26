@@ -102,154 +102,104 @@ async function submitSign() {
     }
 }
 
-// --- 下載完整 PDF (合約 + 簽名) ---
-function generatePDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // 1. 加入合約圖
-    // 假設合約是 A4 比例，寬 190mm (留邊距), 高自動
-    let imgProps = doc.getImageProperties(currentTemplate);
-    let pdfWidth = 190; 
-    let pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-    doc.addImage(currentTemplate, 'PNG', 10, 10, pdfWidth, pdfHeight);
-    
-    // 2. 加入簽名 (如果不夠放，就新增一頁)
-    let yPos = pdfHeight + 20; // 從圖片下方開始
-    
-    // 抓取網頁上的所有簽名卡片
-    let cards = document.querySelectorAll('.sig-card');
-    
-    doc.setFontSize(16);
-    doc.text("Signatures:", 10, yPos);
-    yPos += 10;
-
-    cards.forEach((card, index) => {
-        // 檢查是否需要換頁
-        if (yPos > 250) {
-            doc.addPage();
-            yPos = 20;
-        }
-
-        let img = card.querySelector('img').src;
-        let txt = card.querySelector('.sig-info').innerText;
-        
-        // 畫簽名圖
-        doc.addImage(img, 'PNG', 20, yPos, 40, 20);
-        // 寫名字與日期
-        doc.setFontSize(10);
-        doc.text(txt, 70, yPos + 10);
-        
-        yPos += 30; // 往下移
-    });
-    
-    doc.save("Completed_Contract.pdf");
-}
-
-// --- 管理者功能 ---
-function checkAdmin() {
-    let p = prompt("請輸入管理員密碼:");
-    if(p === "admin") document.getElementById('admin-panel').style.display = "block";
-}
-function logout() { location.reload(); }
-
-function clearSignatures() {
-    if(!confirm("確定要清空所有簽名嗎？")) return;
-    fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: "clear_signatures" }) })
-    .then(() => { alert("已清空"); location.reload(); });
-}
-
-async function uploadTemplate() {
-    let file = document.getElementById('upload-input').files[0];
-    if(!file) return;
-    let reader = new FileReader();
-    reader.onload = async function(e) {
-        await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: "upload_template", fileData: e.target.result })
-        });
-        alert("合約已更新"); location.reload();
-    }
-    reader.readAsDataURL(file);
-}
-// --- 下載完整整合版 PDF ---
-async function downloadMergedPDF() {
-    const btn = document.querySelector('.btn-download');
-    btn.innerText = "下載字型與生成中..."; // 提示使用者
-    btn.disabled = true;
-
+// --- 1. 讀取字型檔的工具函式 ---
+async function loadFont(url) {
     try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        // ----------------------------------------------------------
-        // 設定遠端字型網址 (必須是直連 .ttf 的網址，不能是網頁)
-        // ----------------------------------------------------------
-        // 建議：將 NotoSansTC-Regular.ttf 上傳到你網站的 /public/fonts/ 資料夾
-        // 這樣最安全，不會有 CORS 問題，速度也最快。
-        const fontUrl = 'https://github.com/secrects2/nda-app/blob/09ff3f22433b9a43f257328817d45ebd276f33d9/NotoSansTC-Black.ttf'; 
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("字型下載失敗");
         
-        // 如果你一定要用別人的 CDN (風險：如果對方掛了你的功能就壞了)
-        // const fontUrl = 'https://你的CDN路徑/NotoSansTC-Regular.ttf';
-
-        // 1. 使用 fetch 下載字型
-        const response = await fetch(fontUrl);
-        if (!response.ok) throw new Error("無法下載中文字型，請檢查路徑");
-        
-        // 2. 轉成 Blob 再轉 Base64
         const blob = await response.blob();
-        const fontBase64 = await new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.onloadend = () => {
+                // 讀取到的結果是 "data:font/ttf;base64,AAAA..."
+                // 我們只需要逗號後面的 Base64 字串
+                const base64data = reader.result.split(',')[1];
+                resolve(base64data);
+            };
+            reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
+}
 
-        // 3. 加入 jsPDF
-        const fontFileName = "NotoSansTC.ttf";
-        doc.addFileToVFS(fontFileName, fontBase64);
-        doc.addFont(fontFileName, "NotoSansTC", "normal");
-        doc.setFont("NotoSansTC");
+// --- 2. 下載完整 PDF (含字型載入) ---
+async function downloadMergedPDF() {
+    if (!currentTemplate) return alert("錯誤：找不到合約底圖");
+    
+    // 按鈕狀態提示
+    const btn = document.querySelector('.btn-download');
+    const originalText = btn.innerText;
+    btn.innerText = "正在載入字型..."; 
+    btn.disabled = true;
 
-        // ----------------------------------------------------------
-        // 以下是原本的生成邏輯
-        // ----------------------------------------------------------
-        
-        // 加入底圖
-        if (currentTemplate) {
-            const imgProps = doc.getImageProperties(currentTemplate);
-            const pdfWidth = 190;
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            doc.addImage(currentTemplate, 'PNG', 10, 10, pdfWidth, pdfHeight);
-        }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-        doc.addPage();
-        doc.setFontSize(16);
-        doc.text("簽署紀錄表 (Signatures)", 10, 20); // 測試中文
+    // ==========================================
+    // ★ 修改這裡：直接讀取同一目錄下的字型檔
+    // ==========================================
+    // "./myfont.ttf" 代表讀取跟網頁同一層的檔案
+    // 請確認您上傳到 GitHub 的檔名真的是 myfont.ttf (大小寫要一樣)
+    const fontUrl = "./NotoSansTC-Black.ttf"; 
+    
+    const fontBase64 = await loadFont(fontUrl);
+    
+    if (fontBase64) {
+        // 1. 把字型加入虛擬檔案系統
+        doc.addFileToVFS("CustomFont.ttf", fontBase64);
+        // 2. 註冊字型 (檔名, 字型名, 樣式)
+        doc.addFont("CustomFont.ttf", "CustomFont", "normal");
+        // 3. 設定使用該字型
+        doc.setFont("CustomFont");
+    } else {
+        alert("⚠️ 字型載入失敗，中文可能會顯示亂碼 (請檢查檔名是否正確)");
+    }
 
-        let yPos = 40;
+    // --- 以下為生成 PDF 內容 (保持不變) ---
+    btn.innerText = "生成 PDF 中...";
+
+    // 1. 放合約圖
+    const imgProps = doc.getImageProperties(currentTemplate);
+    const pdfWidth = 190;
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    doc.addImage(currentTemplate, 'PNG', 10, 10, pdfWidth, pdfHeight);
+
+    // 2. 放簽名列表
+    doc.addPage();
+    doc.setFontSize(16);
+    // 如果字型載入成功，這裡的中文就會正常顯示
+    doc.text("簽署紀錄表 (Signatures)", 10, 20);
+
+    let yPos = 40;
+    
+    // 使用全域變數 globalSignatures
+    if(typeof globalSignatures !== 'undefined'){
         globalSignatures.forEach((sig) => {
-            if (yPos > 260) {
-                doc.addPage();
-                doc.setFont("NotoSansTC"); // ★ 換頁記得重設字型
-                yPos = 20;
-            }
+            if (yPos > 260) { doc.addPage(); yPos = 20; }
+
             doc.setLineWidth(0.5);
             doc.line(10, yPos - 5, 200, yPos - 5);
+
+            // 簽名圖片
             doc.addImage(sig.img, 'PNG', 10, yPos, 50, 30);
+
+            // 文字資訊
             doc.setFontSize(12);
             doc.text(`姓名: ${sig.name}`, 70, yPos + 10);
             doc.text(`時間: ${sig.date}`, 70, yPos + 20);
-            yPos += 40;
+            
+            yPos += 40; 
         });
-
-        doc.save("Completed_Contract.pdf");
-
-    } catch (err) {
-        console.error(err);
-        alert("錯誤：" + err.message);
-    } finally {
-        btn.innerText = "下載 PDF";
-        btn.disabled = false;
     }
+
+    // 下載檔案
+    doc.save("Completed_Contract_Full.pdf");
+
+    // 恢復按鈕
+    btn.innerText = originalText;
+    btn.disabled = false;
 }
