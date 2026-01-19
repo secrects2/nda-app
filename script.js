@@ -203,3 +203,84 @@ async function downloadMergedPDF() {
     btn.innerText = originalText;
     btn.disabled = false;
 }
+
+// ==========================================
+// ★ 請將這段程式碼貼在 script.js 的最下面 ★
+// ==========================================
+
+// --- 管理者功能：登入 ---
+function checkAdmin() {
+    // 1. 跳出輸入框
+    let p = prompt("請輸入管理員密碼 (預設 admin):");
+    
+    // 2. 檢查密碼
+    if (p === "admin") {
+        // 3. 顯示後台
+        let panel = document.getElementById('admin-panel');
+        if (panel) {
+            panel.style.display = "block";
+            alert("✅ 登入成功！後台已顯示在上方。");
+            // 自動捲動到最上面
+            window.scrollTo(0, 0);
+        } else {
+            alert("錯誤：找不到 admin-panel 區塊，請檢查 HTML。");
+        }
+    } else if (p !== null) { 
+        alert("密碼錯誤 ❌");
+    }
+}
+
+// --- 管理者功能：登出 ---
+function logout() {
+    document.getElementById('admin-panel').style.display = "none";
+    alert("已登出");
+}
+
+// --- 管理者功能：上傳合約底圖 ---
+async function uploadTemplate() {
+    let fileInput = document.getElementById('upload-input');
+    let file = fileInput.files[0];
+    if(!file) return alert("請先選擇圖片檔案！");
+    
+    // 按鈕防呆
+    let btn = document.querySelector('#admin-panel button');
+    let originalText = btn.innerText;
+    btn.innerText = "上傳中...";
+    btn.disabled = true;
+
+    let reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    action: "upload_template", 
+                    fileData: e.target.result 
+                })
+            });
+            alert("✅ 合約已更新！重新整理頁面即可看到新背景。");
+            location.reload();
+        } catch (error) {
+            alert("上傳失敗：" + error);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+    reader.readAsDataURL(file);
+}
+
+// --- 管理者功能：清空簽名 ---
+function clearSignatures() {
+    if(!confirm("⚠️ 警告：確定要清空所有簽名嗎？此動作無法復原！")) return;
+    
+    fetch(API_URL, { 
+        method: 'POST', 
+        body: JSON.stringify({ action: "clear_signatures" }) 
+    })
+    .then(() => { 
+        alert("🗑️ 所有簽名已清空"); 
+        location.reload(); 
+    })
+    .catch(err => alert("錯誤：" + err));
+}
