@@ -193,9 +193,10 @@ async function downloadMergedPDF() {
             doc.addImage(sig.img, 'PNG', 10, yPos, 50, 30);
 
             // 文字資訊
-            doc.setFontSize(12);
-            doc.text(`姓名: ${sig.name}`, 70, yPos + 10);
-            doc.text(`時間: ${sig.date}`, 70, yPos + 20);
+           // 文字資訊 (只顯示簽名時間)
+doc.setFontSize(12);
+// 移除姓名顯示，或改成其他文字
+doc.text(`Signed at: ${sig.date}`, 70, yPos + 15);
             
             yPos += 40; 
         });
