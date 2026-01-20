@@ -74,11 +74,16 @@ canvas.addEventListener('mousedown', start); canvas.addEventListener('mouseup', 
 canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchend', end); canvas.addEventListener('touchmove', draw, {passive:false});
 
 // --- 送出簽名 ---
+// --- 送出簽名 (修改版：不需輸入名字) ---
 async function submitSign() {
-    let name = document.getElementById('signer-name').value;
-    if(!name) return alert("請輸入姓名");
+    // 1. 移除名字檢查邏輯
+    // let name = document.getElementById('signer-name').value; <--- 刪除這行
     
-    // 取得簽名圖片 (轉小一點以節省空間)
+    // 2. 檢查是否有簽名 (簡單判斷 Canvas 是否為空白的邏輯比較複雜，這裡先假設使用者有畫)
+    // 為了後端資料庫完整，我們自動給一個代號
+    let autoName = "已簽署"; 
+    
+    // 取得簽名圖片
     let sigData = canvas.toDataURL('image/png', 0.5); 
     
     // 按鈕變更狀態
@@ -90,12 +95,12 @@ async function submitSign() {
             method: 'POST',
             body: JSON.stringify({ 
                 action: "sign_document", 
-                name: name, 
+                name: autoName, // 自動填入
                 signatureData: sigData
             })
         });
         alert("✅ 簽名成功！");
-        location.reload(); // 重整看結果
+        location.reload(); 
     } catch(e) {
         alert("失敗：" + e);
         btn.innerText = "確認送出"; btn.disabled = false;
