@@ -203,6 +203,10 @@ async function uploadTemplate() {
     if(!file) return alert("請先選擇 PDF 檔案！");
     if(file.type !== 'application/pdf') return alert("請上傳 PDF 格式！");
     
+    // ★ 新增步驟：詢問專案/合約名稱
+    let docName = prompt("請為這份新合約命名 (例如：2026人事規章)：", "新合約");
+    if (!docName) return; // 如果按取消就不上傳
+
     let btn = document.querySelector('#admin-panel button');
     let originalText = btn.innerText;
     btn.innerText = "轉換中...";
@@ -211,7 +215,7 @@ async function uploadTemplate() {
     try {
         const fileData = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument(fileData).promise;
-        const page = await pdf.getPage(1); // 取第一頁
+        const page = await pdf.getPage(1); 
         const viewport = page.getViewport({ scale: 2 });
         
         const tempCanvas = document.createElement('canvas');
@@ -226,10 +230,14 @@ async function uploadTemplate() {
         btn.innerText = "上傳中...";
         await fetch(API_URL, {
             method: 'POST',
-            body: JSON.stringify({ action: "upload_template", fileData: imageBase64 })
+            body: JSON.stringify({ 
+                action: "upload_template", 
+                fileData: imageBase64,
+                docName: docName  // ★ 傳送名稱給後端
+            })
         });
 
-        alert("✅ 合約已更新！");
+        alert("✅ 系統已切換至新文件：[" + docName + "]\n舊的簽名資料已安全保存在資料庫中。\n頁面將重新整理顯示空白簽名表。");
         location.reload();
     } catch (error) {
         console.error(error);
@@ -239,6 +247,11 @@ async function uploadTemplate() {
         btn.disabled = false;
     }
 }
+
+
+
+
+
 
 // --- 管理者功能：清空簽名 ---
 function clearSignatures() {
