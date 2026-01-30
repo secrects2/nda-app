@@ -1,16 +1,24 @@
 // !!! 請將下方網址換成您第一步複製的 Google Apps Script 網址 !!!
 const API_URL = "https://script.google.com/macros/s/AKfycbwsa8d5bJAXUgqVAFbn11bYBGViv29hj-ABRgKAOz9w4pcN_yifl539RLiEXaX1U-DsVA/exec"; 
+; 
 
+// 2. 請確認您的字型檔名 (需與 GitHub 上傳的一模一樣，區分大小寫)
+const FONT_FILENAME = "./myfont.ttf"; 
 
-
+// ==========================================
+// ★ 系統全域變數
+// ==========================================
 const canvas = document.getElementById('pad');
 const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let currentTemplate = null; // 存合約圖的 Base64
-let globalSignatures = []; // 存簽名資料
+let globalSignatures = [];  // 存簽名資料
 
-// --- 初始化：讀取合約與簽名 ---
+// ==========================================
+// ★ 1. 系統初始化：讀取資料
+// ==========================================
 window.onload = async function() {
+    // 初始化畫布解析度
     canvas.width = 500; 
     canvas.height = 300;
 
@@ -18,7 +26,7 @@ window.onload = async function() {
         let res = await fetch(API_URL);
         let data = await res.json();
         
-        // 1. 顯示合約底圖
+        // --- A. 處理合約底圖 ---
         if (data.template) {
             document.getElementById('contract-img').src = data.template;
             currentTemplate = data.template;
@@ -26,7 +34,12 @@ window.onload = async function() {
             document.getElementById('contract-img').alt = "管理者尚未上傳合約";
         }
 
-        // 2. 顯示簽名列表
+        // --- B. 顯示合約名稱 ---
+        if (data.docName) {
+            document.getElementById('doc-title').innerText = "合約：" + data.docName;
+        }
+
+        // --- C. 顯示簽名列表 ---
         const list = document.getElementById('sig-list');
         list.innerHTML = "";
         
@@ -36,12 +49,12 @@ window.onload = async function() {
             data.signatures.forEach(sig => {
                 let div = document.createElement('div');
                 div.className = 'sig-card';
-                // 顯示簽名圖與時間，不顯示名字
+                // 這裡只顯示時間 (因為使用者沒輸入名字)
                 div.innerHTML = `<img src="${sig.img}"><div class="sig-info">時間: ${sig.date}</div>`;
                 list.appendChild(div);
             });
         } else {
-            list.innerHTML = "<p style='color:#999;'>目前尚無人簽署</p>";
+            list.innerHTML = "<p style='color:#999; grid-column: span 2;'>目前尚無人簽署</p>";
         }
     } catch(e) {
         console.error(e);
@@ -49,12 +62,13 @@ window.onload = async function() {
     }
 }
 
-// --- 簽名板控制 ---
+// ==========================================
+// ★ 2. 簽名板功能 (Canvas)
+// ==========================================
 function openModal() { document.getElementById('modal-sign').style.display = 'flex'; }
 function closeModal() { document.getElementById('modal-sign').style.display = 'none'; }
 function clearPad() { ctx.clearRect(0,0,canvas.width, canvas.height); }
 
-// --- 繪圖邏輯 ---
 function getPos(e) {
     var rect = canvas.getBoundingClientRect();
     var scaleX = canvas.width / rect.width;
@@ -63,6 +77,7 @@ function getPos(e) {
     var clientY = e.clientY || e.touches[0].clientY;
     return { x: (clientX - rect.left)*scaleX, y: (clientY - rect.top)*scaleY };
 }
+
 function start(e) { isDrawing=true; draw(e); }
 function end() { isDrawing=false; ctx.beginPath(); }
 function draw(e) {
@@ -71,16 +86,24 @@ function draw(e) {
     ctx.lineWidth=4; ctx.lineCap='round'; 
     ctx.lineTo(pos.x, pos.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
 }
+
+// 綁定畫布事件 (滑鼠 & 觸控)
 canvas.addEventListener('mousedown', start); canvas.addEventListener('mouseup', end); canvas.addEventListener('mousemove', draw);
 canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchend', end); canvas.addEventListener('touchmove', draw, {passive:false});
 
-// --- 送出簽名 (無須姓名版) ---
+
+// ==========================================
+// ★ 3. 送出簽名 (免輸入名字版)
+// ==========================================
 async function submitSign() {
-    let autoName = "已簽署"; // 自動代號
-    let sigData = canvas.toDataURL('image/png', 0.5); 
+    let autoName = "已簽署"; // 自動代號，因為不想輸入名字
+    let sigData = canvas.toDataURL('image/png', 0.5); // 壓縮圖片
     
+    // 防呆
     let btn = document.querySelector('#modal-sign .btn-sign');
-    btn.innerText = "傳送中..."; btn.disabled = true;
+    let originalText = btn.innerText;
+    btn.innerText = "傳送中..."; 
+    btn.disabled = true;
 
     try {
         await fetch(API_URL, {
@@ -95,15 +118,20 @@ async function submitSign() {
         location.reload(); 
     } catch(e) {
         alert("失敗：" + e);
-        btn.innerText = "確認送出"; btn.disabled = false;
+        btn.innerText = originalText; 
+        btn.disabled = false;
     }
 }
 
-// --- 下載字型工具 ---
+
+// ==========================================
+// ★ 4. 下載 PDF (含字型載入)
+// ==========================================
+// 工具：下載字型檔並轉 Base64
 async function loadFont(url) {
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error("字型下載失敗");
+        if (!response.ok) throw new Error("字型下載失敗 (請檢查 GitHub 檔名)");
         const blob = await response.blob();
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -116,7 +144,6 @@ async function loadFont(url) {
     }
 }
 
-// --- 下載 PDF ---
 async function downloadMergedPDF() {
     if (!currentTemplate) return alert("錯誤：找不到合約底圖");
     
@@ -128,9 +155,8 @@ async function downloadMergedPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // 載入自定義字型 (請確認檔名是否為 myfont.ttf 且已上傳 GitHub)
-    const fontUrl = "./myfont.ttf"; 
-    const fontBase64 = await loadFont(fontUrl);
+    // A. 載入字型
+    const fontBase64 = await loadFont(FONT_FILENAME);
     
     if (fontBase64) {
         doc.addFileToVFS("CustomFont.ttf", fontBase64);
@@ -142,13 +168,13 @@ async function downloadMergedPDF() {
 
     btn.innerText = "生成 PDF...";
 
-    // 1. 合約圖
+    // B. 放入合約圖 (Page 1)
     const imgProps = doc.getImageProperties(currentTemplate);
     const pdfWidth = 190;
     const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
     doc.addImage(currentTemplate, 'PNG', 10, 10, pdfWidth, pdfHeight);
 
-    // 2. 簽名列表
+    // C. 放入簽名列表 (Page 2+)
     doc.addPage();
     doc.setFontSize(16);
     doc.text("簽署紀錄表 (Signatures)", 10, 20);
@@ -156,16 +182,19 @@ async function downloadMergedPDF() {
     let yPos = 40;
     if(typeof globalSignatures !== 'undefined'){
         globalSignatures.forEach((sig) => {
+            // 自動換頁
             if (yPos > 260) { doc.addPage(); yPos = 20; }
+            
             doc.setLineWidth(0.5);
             doc.line(10, yPos - 5, 200, yPos - 5);
             
             // 簽名圖
             doc.addImage(sig.img, 'PNG', 10, yPos, 50, 30);
             
-            // 文字資訊
+            // 文字資訊 (只顯示時間)
             doc.setFontSize(12);
             doc.text(`Signed at: ${sig.date}`, 70, yPos + 15);
+            
             yPos += 40; 
         });
     }
@@ -175,7 +204,12 @@ async function downloadMergedPDF() {
     btn.disabled = false;
 }
 
-// --- 管理者功能：登入 ---
+
+// ==========================================
+// ★ 5. 管理者功能 (Admin)
+// ==========================================
+
+// A. 登入
 function checkAdmin() {
     let p = prompt("請輸入管理員密碼 (預設 admin):");
     if (p === "admin") {
@@ -190,22 +224,33 @@ function checkAdmin() {
     }
 }
 
-// --- 管理者功能：登出 ---
+// B. 登出
 function logout() {
     document.getElementById('admin-panel').style.display = "none";
     alert("已登出");
 }
 
-// --- 管理者功能：上傳 PDF 轉圖 ---
+// C. 清空 (建議保留，以免需要強制重置)
+function clearSignatures() {
+    if(!confirm("⚠️ 警告：這會清空「目前合約」的所有簽名！確定嗎？")) return;
+    fetch(API_URL, { 
+        method: 'POST', 
+        body: JSON.stringify({ action: "clear_signatures" }) 
+    })
+    .then(() => { alert("已清空"); location.reload(); })
+    .catch(err => alert("錯誤：" + err));
+}
+
+// D. 上傳 PDF 轉圖 (版本管理核心)
 async function uploadTemplate() {
     let fileInput = document.getElementById('upload-input');
     let file = fileInput.files[0];
     if(!file) return alert("請先選擇 PDF 檔案！");
     if(file.type !== 'application/pdf') return alert("請上傳 PDF 格式！");
     
-    // ★ 新增步驟：詢問專案/合約名稱
-    let docName = prompt("請為這份新合約命名 (例如：2026人事規章)：", "新合約");
-    if (!docName) return; // 如果按取消就不上傳
+    // ★ 詢問新合約名稱 (這是關鍵)
+    let docName = prompt("請為這份新合約命名 (例如：2026年保密條款)：", "新合約");
+    if (!docName) return; 
 
     let btn = document.querySelector('#admin-panel button');
     let originalText = btn.innerText;
@@ -213,9 +258,10 @@ async function uploadTemplate() {
     btn.disabled = true;
 
     try {
+        // 1. PDF 轉 Image
         const fileData = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument(fileData).promise;
-        const page = await pdf.getPage(1); 
+        const page = await pdf.getPage(1); // 取第一頁
         const viewport = page.getViewport({ scale: 2 });
         
         const tempCanvas = document.createElement('canvas');
@@ -224,21 +270,22 @@ async function uploadTemplate() {
         tempCanvas.height = viewport.height;
         
         await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
-        
         const imageBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
         
+        // 2. 上傳到後端 (帶上 docName)
         btn.innerText = "上傳中...";
         await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({ 
                 action: "upload_template", 
                 fileData: imageBase64,
-                docName: docName  // ★ 傳送名稱給後端
+                docName: docName 
             })
         });
 
-        alert("✅ 系統已切換至新文件：[" + docName + "]\n舊的簽名資料已安全保存在資料庫中。\n頁面將重新整理顯示空白簽名表。");
+        alert("✅ 系統已切換至新文件：[" + docName + "]\n舊簽名資料已存檔，頁面將重置。");
         location.reload();
+
     } catch (error) {
         console.error(error);
         alert("失敗：" + error.message);
@@ -246,20 +293,4 @@ async function uploadTemplate() {
         btn.innerText = originalText;
         btn.disabled = false;
     }
-}
-
-
-
-
-
-
-// --- 管理者功能：清空簽名 ---
-function clearSignatures() {
-    if(!confirm("⚠️ 確定要清空所有簽名嗎？")) return;
-    fetch(API_URL, { 
-        method: 'POST', 
-        body: JSON.stringify({ action: "clear_signatures" }) 
-    })
-    .then(() => { alert("已清空"); location.reload(); })
-    .catch(err => alert("錯誤：" + err));
 }
