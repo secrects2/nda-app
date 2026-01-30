@@ -95,29 +95,69 @@ canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventLi
 // ==========================================
 // ★ 3. 送出簽名 (免輸入名字版)
 // ==========================================
+// --- 送出簽名 (自動合成 PDF 版) ---
 async function submitSign() {
-    let autoName = "已簽署"; // 自動代號，因為不想輸入名字
-    let sigData = canvas.toDataURL('image/png', 0.5); // 壓縮圖片
-    
-    // 防呆
+    if (!currentTemplate) return alert("錯誤：找不到合約底圖，無法合成 PDF");
+
+    let autoName = "已簽署"; 
     let btn = document.querySelector('#modal-sign .btn-sign');
     let originalText = btn.innerText;
-    btn.innerText = "傳送中..."; 
+    
+    btn.innerText = "生成合約中..."; 
     btn.disabled = true;
 
     try {
+        // 1. 準備簽名圖片 (給網頁預覽用)
+        let sigData = canvas.toDataURL('image/png', 0.5); 
+
+        // 2. 準備合成 PDF (給存檔用)
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // (A) 放入合約底圖
+        const imgProps = doc.getImageProperties(currentTemplate);
+        const pdfWidth = 190;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        doc.addImage(currentTemplate, 'PNG', 10, 10, pdfWidth, pdfHeight);
+
+        // (B) 放入使用者的簽名
+        // 我們把簽名放在 PDF 的下方固定位置，或是另起一頁
+        // 為了簡單與自動化，我們這裡示範「另起一頁」放簽名，保證不遮擋合約
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.text("Signature Page", 10, 20);
+        
+        // 簽名圖
+        doc.addImage(sigData, 'PNG', 10, 40, 50, 30);
+        
+        // 加上時間戳記 (使用標準字型，避免中文亂碼問題)
+        // 因為是自動存檔，我們用英文時間格式即可，這樣速度最快且不需載入字型
+        let timeStr = new Date().toLocaleString('en-US', { hour12: false });
+        doc.setFontSize(10);
+        doc.text("Signed at: " + timeStr, 10, 80);
+
+        // (C) 輸出 PDF Base64
+        let pdfData = doc.output('datauristring');
+
+        // 3. 傳送給後端
+        btn.innerText = "上傳雲端中...";
+        
         await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({ 
                 action: "sign_document", 
                 name: autoName,
-                signatureData: sigData
+                signatureData: sigData, // 傳送圖片 (存F欄)
+                pdfData: pdfData        // 傳送PDF (存C欄)
             })
         });
-        alert("✅ 簽名成功！");
+
+        alert("✅ 簽署完成！完整合約已存入雲端。");
         location.reload(); 
+
     } catch(e) {
-        alert("失敗：" + e);
+        console.error(e);
+        alert("失敗：" + e.message);
         btn.innerText = originalText; 
         btn.disabled = false;
     }
